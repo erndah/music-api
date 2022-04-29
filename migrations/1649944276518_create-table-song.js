@@ -28,6 +28,7 @@ exports.up = (pgm) => {
     albumId: {
       type: 'TEXT',
       refrences: 'album',
+      onDelete: 'cascade',
     },
   });
 };

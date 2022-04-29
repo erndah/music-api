@@ -1,7 +1,6 @@
 /* eslint-disable linebreak-style */
 /* eslint-disable no-console */
 /* eslint-disable no-underscore-dangle */
-
 const ClientError = require('../../exceptions/ClientError');
 
 class UsersHandler {
@@ -16,7 +15,6 @@ class UsersHandler {
     try {
       this._validator.validateUserPayload(request.payload);
       const { username, password, fullname } = request.payload;
-
       const userId = await this._service.addUser({ username, password, fullname });
 
       const response = h.response({
@@ -40,7 +38,7 @@ class UsersHandler {
 
       const response = h.response({
         status: 'error',
-        message: 'Maaf, terjadi kegagalan pada server kami.',
+        message: '(user) Maaf, terjadi kegagalan pada server kami.',
       });
       response.code(500);
       console.error(error);

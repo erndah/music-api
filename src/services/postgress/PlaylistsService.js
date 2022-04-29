@@ -8,9 +8,10 @@ const AuthorizationError = require('../../exceptions/AuthorizationError');
 const ClientError = require('../../exceptions/ClientError');
 
 class PlaylistsService {
-  constructor(collaborationService) {
+  constructor(collaborationService, activitiesService) {
     this._pool = new Pool();
     this._collaborationService = collaborationService;
+    this._activitiesService = activitiesService;
   }
 
   async addPlaylist({ name, owner }) {
@@ -26,15 +27,29 @@ class PlaylistsService {
     if (!result.rows[0].id) {
       throw new InvariantError('Playlist gagal ditambahkan');
     }
+    const songId = '-';
+    const action = 'Create Playlist';
+    await this._activitiesService.addActivity(id, songId, owner, action);
+
     return result.rows[0].id;
   }
 
   async getPlaylists(owner) {
+    const queryCollab = {
+      text: 'SELECT playlist_id from collaborations where user_id = $1',
+      values: [owner],
+    };
+    const result2 = await this._pool.query(queryCollab);
+
+    let playlistId = '';
+    if (result2.rows.length) {
+      const result = result2.rows[0].playlist_id;
+      playlistId = result;
+    }
     const query = {
       text: `SELECT playlists.id, playlists.name, users.username FROM playlists
-      LEFT JOIN users ON users.id = playlists.owner
-      WHERE owner = $1 or playlists.id = $2`,
-      values: [owner],
+      LEFT JOIN users ON users.id = playlists.owner WHERE owner = $1 or playlists.id = $2`,
+      values: [owner, playlistId],
     };
 
     const result = await this._pool.query(query);
@@ -46,6 +61,7 @@ class PlaylistsService {
       text: 'DELETE FROM playlists WHERE id = $1 RETURNING id',
       values: [playlistId],
     };
+    await this._activitiesService.deleteActivity(playlistId);
     const result = await this._pool.query(query);
 
     if (!result.rows.length) {
@@ -53,8 +69,8 @@ class PlaylistsService {
     }
   }
 
-  async addSongToPlaylist(songId, playlistId) {
-    const id = `playlist_song-${nanoid(16)}`;
+  async addSongToPlaylist(songId, playlistId, credentialId) {
+    const id = `ps-${nanoid(16)}`;
     const query = {
       text: 'INSERT INTO playlistsongs VALUES($1, $2, $3) RETURNING id',
       values: [id, songId, playlistId],
@@ -65,6 +81,10 @@ class PlaylistsService {
     if (!result.rows[0].id) {
       throw new InvariantError('Gagal menambahkan lagu ke dalam playlist');
     }
+    const action = 'add';
+    const userId = credentialId;
+
+    await this._activitiesService.addActivity(playlistId, songId, userId, action);
     return result.rows[0].id;
   }
 
@@ -73,15 +93,13 @@ class PlaylistsService {
 
     const query1 = {
       text: `SELECT playlists.id, playlists.name, users.username FROM playlists
-      INNER JOIN users ON users.id = playlist.owner 
-      WHERE playlists.id = $3 OR owner = $1 and playlists.id = $2`,
+      INNER JOIN users ON users.id = playlist.owner WHERE playlists.id = $3 OR owner = $1 and playlists.id = $2`,
       values: [owner, id, playlistId],
     };
 
     const query2 = {
       text: `SELECT song.id, song.title, song.performer FROM song
-      LEFT JOIN playlistsongs
-      ON playlistsong.song_id = song.id
+      LEFT JOIN playlistsongs ON playlistsong.song_id = song.id
       WHERE playlistsongs.playlist_id = $1 or playlistsongs.playlist_id = $2`,
       values: [id, playlistId],
     };
@@ -89,7 +107,7 @@ class PlaylistsService {
     const result = await this._pool.query(query1);
     const song = await this._pool.query(query2);
 
-    const combine = {
+    const listsong = {
       ...result.rows[0],
       song: [
         ...song.rows],
@@ -99,10 +117,10 @@ class PlaylistsService {
       throw new NotFoundError('Playlist tidak ditemukan');
     }
 
-    return combine;
+    return listsong;
   }
 
-  async deleteSongFromPlaylist(id, playlistId) {
+  async deleteSongFromPlaylist(id, playlistId, credentialId) {
     const query = {
       text: 'DELETE FROM playlistsongs WHERE song_id = $1 AND playlist_id = $2 RETURNING id',
       values: [id, playlistId],
@@ -112,6 +130,11 @@ class PlaylistsService {
     if (!result.rows.length) {
       throw new ClientError('---- Lagu gagal dihapus. Id tidak ada');
     }
+    const action = 'delete';
+    const songId = id;
+    const userId = credentialId;
+
+    await this._activitiesService.addActivity(playlistId, songId, userId, action);
   }
 
   async verifyPlaylistOwner(playlistId, userId) {
