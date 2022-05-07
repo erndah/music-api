@@ -1,4 +1,4 @@
-/* eslint-disable linebreak-style */
+/* eslint-disable camelcase *//* eslint-disable linebreak-style */
 /* eslint-disable no-underscore-dangle */
 const { nanoid } = require('nanoid');
 const { Pool } = require('pg');
@@ -69,11 +69,11 @@ class PlaylistsService {
     }
   }
 
-  async addSongToPlaylist(songId, playlistId, credentialId) {
-    const id = `ps-${nanoid(16)}`;
+  async addSongToPlaylist(song_id, playlist_id, credentialId) {
+    const id = `playlist_song-${nanoid(16)}`;
     const query = {
       text: 'INSERT INTO playlistsongs VALUES($1, $2, $3) RETURNING id',
-      values: [id, songId, playlistId],
+      values: [id, playlist_id, song_id],
     };
 
     const result = await this._pool.query(query);
@@ -84,7 +84,7 @@ class PlaylistsService {
     const action = 'add';
     const userId = credentialId;
 
-    await this._activitiesService.addActivity(playlistId, songId, userId, action);
+    await this._activitiesService.addActivity(playlist_id, song_id, userId, action);
     return result.rows[0].id;
   }
 
